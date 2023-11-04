@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Movie Recommendations</title>
+</head>
+<body>
+    <h1>Movie Recommendations for User ID: {{ user_id }}</h1>
+    <h2>Recommended Movie IDs:</h2>
+    <ul>
+        {% for movie_id in movie_ids %}
+        <li>{{ movie_id }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
