@@ -55,6 +55,46 @@
 #     print('Thông tin các phim đã được lưu vào tệp phim_top_100_imdb.txt.')
 # else:
 #     print('Không thể kết nối đến trang web.')
+
+# import csv
+#
+# # Đọc dữ liệu từ tệp phim_top_100_imdb.txt và lưu vào danh sách movies
+# with open('C:/Users/ADMIN/phim_top_100_imdb.txt', 'r', encoding='utf-8') as file:
+#     lines = file.readlines()
+##Chuẩn bị danh sách movies và biến current_movie:
+# movies = []
+# current_movie = {}
+#
+# for line in lines:
+#     if ':' in line:
+#         key, value = line.strip().split(': ', 1)  # Chỉ chia thành 2 phần, key và value
+#         if key == "Năm sản xuất":
+#             # Xử lý trường hợp "(2000)" và chỉ giữ lại số năm
+#             value = value.strip('()')
+#         current_movie[key] = value
+#     elif line.strip() == '---':
+#         if current_movie:
+#             movies.append(current_movie)
+#             current_movie = {}
+#
+# # Ghi dữ liệu vào tệp phim top 100 imdb.csv dưới dạng CSV
+# with open('phim_top_100_imdb.csv', 'w', newline='', encoding='utf-8') as csvfile:
+#     csv_writer = csv.writer(csv
+#     file)
+#
+#     # Viết tiêu đề cho các cột trong tệp tin CSV
+#     csv
+#     writer.writerow(['Tiêu đề', 'Năm sản xuất', 'Thể loại', 'Điểm đánh giá', 'Thời lượng', 'Votes', 'Gross'])
+#
+#     # Ghi dữ liệu từ danh sách movies vào tệp tin CSV
+#     for movie in movies:
+#         csv
+#         writer.writerow([movie.get("Tiêu đề"), movie.getz("Năm sản xuất"), movie.get("Thể loại"),
+#                          movie.get("Điểm đánh giá"), movie.get("Thời lượng"), movie.get("Votes"),
+#                          movie.get("Gross")])
+#
+# print("Dữ liệu đã được ghi vào tệp phim top 100 imdb.csv.")
+
 # from pyspark.sql import SparkSession
 # from pyspark.sql.functions import unix_timestamp
 # from pyspark.sql.types import TimestampType
@@ -140,7 +180,7 @@ csv_data = spark.read.csv("D:/datamovies/merged_data.csv/part-00000-d9263bbf-9b3
 
 # Hiển thị dữ liệu
 csv_data.show()
-from pyspark.sql.functions import countDistinct, count, max, min
+from pyspark.sql.functions import countDistinct, max, min
 
 # Tính tổng số người dùng
 total_users = csv_data.select(countDistinct("userId")).first()[0]
@@ -192,7 +232,7 @@ rmse = evaluator.evaluate(predictions)
 print("Root Mean Squared Error (RMSE) on test data = " + str(rmse))
 
 # Hiển thị các dự đoán trên tập kiểm tra
-predictions.show(truncate=False)
+#predictions.show(truncate=False)
 # from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 #
 # # Xây dựng grid search cho các siêu tham số cần tinh chỉnh
@@ -232,80 +272,65 @@ from pyspark.sql.functions import explode
 from pyspark.sql.functions import col
 # Tạo danh sách 10 đề xuất phim hàng đầu cho mỗi người dùng
 userRecs = model.recommendForAllUsers(10)
-
-# Hiển thị 10 đề xuất phim hàng đầu cho một người dùng cụ thể (ví dụ, người dùng có userId = 1)
-user1_recommendations = userRecs.filter(col("userId") == 1).select("recommendations")
-user1_recommendations.show(truncate=False)
-
 # Lấy 10 phim có đề xuất cao nhất cho tất cả các ID người dùng
 userRecs.show(truncate=False)
+new_user_id = int(input("Nhập userId: "))
+# Hiển thị 10 đề xuất phim hàng đầu cho một người dùng cụ thể (ví dụ, người dùng có userId = 1)
+user1_recommendations = userRecs.filter(col("userId") == new_user_id).select("recommendations")
+# Sử dụng hàm explode để chuyển mảng cột recommendations thành các dòng riêng lẻ
+user1_recommendations_exploded = user1_recommendations.withColumn("exploded_recommendations", explode("recommendations"))
 
-
-# Nhập userId mới từ người dùng
-from pyspark.sql.functions import col, lit
-
-# Lấy userId mới từ người dùng
-new_user_id = int(input("Nhập userId mới: "))
-
-# Tạo DataFrame chứa các bộ phim mà người dùng mới chưa đánh giá
-existing_movie_ids = csv_data.filter(col("userId") == new_user_id).select("movieId")
-all_movie_ids = csv_data.select("movieId").distinct()
-new_user_movie_ids = all_movie_ids.subtract(existing_movie_ids).withColumn("userId", lit(new_user_id))
-
-# Dự đoán đánh giá cho các bộ phim chưa đánh giá của người dùng mới
-new_user_predictions = model.transform(new_user_movie_ids)
-
-# Sắp xếp theo cột "prediction" giảm dần và giới hạn chỉ hiển thị 10 bản ghi đầu tiên
-new_user_recommendations = new_user_predictions.select("movieId", "prediction").orderBy("prediction", ascending=False).limit(10)
-
-# Hiển thị 10 bộ phim đề xuất cao nhất cho người dùng mới
-new_user_recommendations.show(truncate=False)
-
-
-def add_new_user(user_id, movie_id, rating):
-    # Tạo DataFrame tạm thời với các cột chính (movieId, userId, rating)
-    new_user_data = spark.createDataFrame([(movie_id, user_id, rating)], schema=["movieId", "userId", "rating"])
-
-    # Thêm các cột với giá trị mặc định hoặc NULL
-    new_user_data = new_user_data.withColumn("timestamp", lit(None).cast("timestamp"))
-    new_user_data = new_user_data.withColumn("title", lit(None).cast("string"))
-    new_user_data = new_user_data.withColumn("genres", lit(None).cast("string"))
-
-    # Gộp DataFrame mới vào csv_data
-    global csv_data
-    csv_data = csv_data.union(new_user_data)
-
-def add_new_user(user_id, movie_id, rating):
-    # Tạo DataFrame tạm thời với các cột chính (movieId, userId, rating)
-    new_user_data = spark.createDataFrame([(movie_id, user_id, rating)], schema=["movieId", "userId", "rating"])
-
-    # Thêm các cột với giá trị mặc định hoặc NULL
-    new_user_data = new_user_data.withColumn("timestamp", lit(None).cast("timestamp"))
-    new_user_data = new_user_data.withColumn("title", lit(None).cast("string"))
-    new_user_data = new_user_data.withColumn("genres", lit(None).cast("string"))
-
-    # Gộp DataFrame mới vào csv_data
-    global csv_data
-    csv_data = csv_data.union(new_user_data)
-
-# Hàm đưa ra top n phim phù hợp dựa trên thông tin rating của user
-def recommend_movies_for_user(user_id, n=10):
-    user_rec_df = model.recommendForUserSubset(csv_data.filter(col("userId") == user_id), n)
-    return user_rec_df.select("recommendations.movieId")
-
-# Hàm đưa ra rating cho một bộ phim cụ thể dựa trên thông tin rating của user
-def predict_rating_for_movie(user_id, movie_id):
-    prediction = model.transform(spark.createDataFrame([(movie_id, user_id)], schema=["movieId", "userId"])).collect()[0]["prediction"]
-    return prediction
-new_user_id = int(input("Nhập userId mới: "))
-new_movies_id = int(input("Nhập moviesId: "))
-new_rating = int(input("Nhập rating: "))
-# Sử dụng các hàm đã định nghĩa
-add_new_user(new_user_id, new_movies_id, new_rating)
-recommended_movies = recommend_movies_for_user(new_user_id, 10)
-predicted_rating = predict_rating_for_movie(new_user_id, new_movies_id)
+# Gộp DataFrame user1_recommendations_exploded và csv_data dựa trên cột movieId
+recommendations_with_titles = user1_recommendations_exploded.alias("ur").join(
+    csv_data.alias("cd"),
+    user1_recommendations_exploded.exploded_recommendations.movieId == csv_data.movieId,
+    "left_outer"
+).select("ur.exploded_recommendations.movieId", "ur.exploded_recommendations.rating", "cd.title", "cd.genres")
 
 # Hiển thị kết quả
-recommended_movies.show(truncate=False)
-print("Predicted rating for movie 456:", predicted_rating)
+recommendations_with_titles.show(truncate=False)
+
+
+
+# # Nhập userId mới từ người dùng
+from pyspark.sql.functions import col, lit
+
+
+from pyspark.sql import Row
+new_user_id = int(input("Nhập userId mới: "))
+new_movies_id = int(input("Nhập moviesId: "))
+new_rating = float(input("Nhập đánh giá cho bộ phim (từ 1 đến 5): "))
+
+# Kiểm tra xem new_user_id có tồn tại trong danh sách userId hiện tại không
+if new_user_id not in csv_data.select("userId").rdd.flatMap(lambda x: x).collect():
+    # Tạo DataFrame cho đánh giá của người dùng mới và thêm vào csv_data
+    new_user_data = spark.createDataFrame([(new_movies_id, new_user_id, new_rating, None, None, None)], schema=schema)
+    csv_data = csv_data.union(new_user_data)
+# Huấn luyện mô hình ALS với dữ liệu mới
+model = als.fit(csv_data)
+
+# Lấy ra các đề xuất cho người dùng mới
+user_recommendations = model.recommendForUserSubset(spark.createDataFrame([(new_user_id,)], ["userId"]), 10)
+# Lấy dữ liệu đề xuất thành danh sách Python
+recommendations_list = user_recommendations.collect()
+# Sử dụng hàm explode để chuyển mảng recommendations thành các dòng đơn lẻ
+user_recommendations_exploded = user_recommendations.withColumn("exploded_recommendations", explode("recommendations"))
+
+# Gộp DataFrame user_recommendations_exploded và csv_data dựa trên cột movieId
+recommendations_with_titles = user_recommendations_exploded.alias("ur").join(
+    csv_data.alias("cd"),
+    user_recommendations_exploded.exploded_recommendations.movieId == csv_data.movieId,
+    "left_outer"
+).select("ur.userId", "ur.exploded_recommendations.movieId", "ur.exploded_recommendations.rating", "cd.title", "cd.genres")
+# Lọc các hàng có movieId
+
+# Hiển thị kết quả dưới dạng DataFrame
+recommendations_with_titles.show(truncate=False)
+
+
+
+
+
+
+
 
