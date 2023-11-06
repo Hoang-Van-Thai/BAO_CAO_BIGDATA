@@ -272,18 +272,21 @@ from pyspark.sql.functions import explode
 from pyspark.sql.functions import col
 # Tạo danh sách 10 đề xuất phim hàng đầu cho mỗi người dùng
 userRecs = model.recommendForAllUsers(10)
+# Loại bỏ các bộ phim trùng lặp cho mỗi người dùng và gán tên mới cho cột
+uniqueUserRecs = userRecs.withColumn("unique_recommendations", col("recommendations").getItem(0))
+
 # Lấy 10 phim có đề xuất cao nhất cho tất cả các ID người dùng
-userRecs.show(truncate=False)
+uniqueUserRecs.show(truncate=False)
 new_user_id = int(input("Nhập userId: "))
-# Hiển thị 10 đề xuất phim hàng đầu cho một người dùng cụ thể (ví dụ, người dùng có userId = 1)
-user1_recommendations = userRecs.filter(col("userId") == new_user_id).select("recommendations")
+# Hiển thị 10 đề xuất phim hàng đầu cho một người dùng cụ thể
+user1_recommendations = uniqueUserRecs.filter(col("userId") == new_user_id).select("recommendations")
 # Sử dụng hàm explode để chuyển mảng cột recommendations thành các dòng riêng lẻ
 user1_recommendations_exploded = user1_recommendations.withColumn("exploded_recommendations", explode("recommendations"))
-
+movies_data = spark.read.csv("D:/datamovies/4_2015/movies.csv", header=True)
 # Gộp DataFrame user1_recommendations_exploded và csv_data dựa trên cột movieId
 recommendations_with_titles = user1_recommendations_exploded.alias("ur").join(
-    csv_data.alias("cd"),
-    user1_recommendations_exploded.exploded_recommendations.movieId == csv_data.movieId,
+    movies_data.alias("cd"),
+    user1_recommendations_exploded.exploded_recommendations.movieId == movies_data.movieId,
     "left_outer"
 ).select("ur.exploded_recommendations.movieId", "ur.exploded_recommendations.rating", "cd.title", "cd.genres")
 
@@ -292,14 +295,22 @@ recommendations_with_titles.show(truncate=False)
 
 
 
-# # Nhập userId mới từ người dùng
 from pyspark.sql.functions import col, lit
 
 
 from pyspark.sql import Row
 new_user_id = int(input("Nhập userId mới: "))
 new_movies_id = int(input("Nhập moviesId: "))
-new_rating = float(input("Nhập đánh giá cho bộ phim (từ 1 đến 5): "))
+while True:
+    try:
+        new_rating = float(input("Nhập đánh giá cho bộ phim (từ 1 đến 5): "))
+        if 1 <= new_rating <= 5:
+            break  # Nếu giá trị hợp lệ, thoát khỏi vòng lặp
+        else:
+            print("Đánh giá phải nằm trong khoảng từ 1 đến 5. Vui lòng nhập lại.")
+    except ValueError:
+        print("Vui lòng nhập một số hợp lệ.")
+
 
 # Kiểm tra xem new_user_id có tồn tại trong danh sách userId hiện tại không
 if new_user_id not in csv_data.select("userId").rdd.flatMap(lambda x: x).collect():
@@ -318,12 +329,13 @@ user_recommendations_exploded = user_recommendations.withColumn("exploded_recomm
 
 # Gộp DataFrame user_recommendations_exploded và csv_data dựa trên cột movieId
 recommendations_with_titles = user_recommendations_exploded.alias("ur").join(
-    csv_data.alias("cd"),
-    user_recommendations_exploded.exploded_recommendations.movieId == csv_data.movieId,
+    movies_data.alias("cd"),
+    user_recommendations_exploded.exploded_recommendations.movieId == movies_data.movieId,
     "left_outer"
 ).select("ur.userId", "ur.exploded_recommendations.movieId", "ur.exploded_recommendations.rating", "cd.title", "cd.genres")
 # Lọc các hàng có movieId
-
+selected_movie_info = movies_data.filter(movies_data.movieId == new_movies_id).select("title", "genres")
+selected_movie_info.show(truncate=False)
 # Hiển thị kết quả dưới dạng DataFrame
 recommendations_with_titles.show(truncate=False)
 
